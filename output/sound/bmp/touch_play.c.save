@@ -1,0 +1,63 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <linux/input.h>
+#include <alsa/asoundlib.h>
+
+#define DEVICE "/dev/input/event0"
+#define WAV_FILE "/home/Download/snare_drum.wav"
+
+void play_wav(const char *filename) {
+    FILE *fp = fopen(filename, "rb");
+    if (!fp) {
+        perror("파일 열기 실패");
+        return;
+    }
+
+    // WAV 헤더 읽기 및 무시 (44바이트)
+    fseek(fp, 44, SEEK_SET);
+
+    // ALSA 설정
+    snd_pcm_t *pcm;
+    snd_pcm_open(&pcm, "default", SND_PCM_STREAM_PLAYBACK, 0);
+    snd_pcm_set_params(pcm,
+                       SND_PCM_FORMAT_S16_LE,
+                       SND_PCM_ACCESS_RW_INTERLEAVED,
+                       1,           // 모노
+                       44100,       // 샘플레이트
+                       1,           // 소프트웨어 버퍼링 허용
+                       500000);     // 0.5초 latency
+
+    char buffer[4096];
+    size_t frames = sizeof(buffer) / 2; // 16-bit mono = 2바이트/프레임
+
+    while (!feof(fp)) {
+        size_t read = fread(buffer, 1, sizeof(buffer), fp);
+        snd_pcm_writei(pcm, buffer, read / 2);
+    }
+
+    snd_pcm_drain(pcm);
+    snd_pcm_close(pcm);
+    fclose(fp);
+}
+
+int main() {
+    struct input_event ev;
+    int fd = open(DEVICE, O_RDONLY);
+    if (fd < 0) {
+        perror("터치 장치 열기 실패");
+        return 1;
+    }
+
+    printf("터치 감지 대기 중...\n");
+
+    while (1) {
+        if (read(fd, &ev, sizeof(struct input_event)) > 0) {
+        	printf("type: %d, code: %d, value: %d\n", ev.type, ev.code, ev.value);
+        }
+    }
+
+    close(fd);
+    return 0;
+}
