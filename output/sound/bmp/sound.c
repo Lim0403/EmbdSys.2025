@@ -28,7 +28,7 @@ void play_sound(int row, int col) {
 }
 
 void play_shaker() {
-    const char* shaker = "shaker.wav";
+    const char* shaker = "sound7.wav";
     //char command[64];
     //snprintf(command, sizeof(command), "aplay %s &", shaker);
     //system(command);

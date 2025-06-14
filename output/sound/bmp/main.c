@@ -17,6 +17,33 @@
 
 #define INPUT_DEVICE "/dev/input/event4"
 #define MAX_TOUCHES 10
+int gyro[3] = {0};
+
+
+
+//===========================지은 : 자이로스코프가 일정 값 이상이 될 시 loop의 녹음 함수 시작(loop코드 아직 안 와서 비워놓음)=========================
+
+
+
+void gyro_shake_play()
+    {
+        if (readGyro(gyro) != 0) {printf("Failed to read gyroscope data.\n");}
+
+        if(gyro[0]>200||gyro[1]>200||gyro[2]>200)
+        {
+        printf("자이로 입력 함수 넣어야 하는데 함수가 없어서 일단 프린트해놓은 것");
+        play_shaker();
+        }
+    }
+
+
+//====================================================================================================================================
+
+
+
+
+
+
 
 void enable_graphics_mode() {
     int conFD = open("/dev/tty0", O_RDWR);
@@ -122,29 +149,20 @@ void handle_touch_input(unsigned char *fbmem, int fb_width, int fb_height, int b
             }
         }
         usleep(1000); // 1ms 대기
+        //지은 - 자이로가 값이 올라가면 shaker.wav 출력
+        gyro_shake_play();
+    
     }
 
     close(fd);
 }
 
-//===========================지은 : 자이로스코프가 일정 값 이상이 될 시 loop의 녹음 함수 시작(loop코드 아직 안 와서 비워놓음)=========================
-
-int gyro[3] = {0};
-
-void gyro_shake_play(int val1, int val2, int val3)
-    {
-        if (readGyro(gyro) != 0) {printf("Failed to read gyroscope data.\n");}
-
-        if(val1>200||val2>200||val3>200){printf("자이로 입력 함수 넣어야 하는데 함수가 없어서 일단 프린트해놓은 것");
-        play_shaker();}
-    }
-
-
-//====================================================================================================================================
 
 int main() {
     unsigned char *fbmem;
     int width, height, bpp, line_length, mem_size;
+    
+
 
     printf("start!");
     int fbfd = init_framebuffer("/dev/fb0", &fbmem, &width, &height, &bpp, &line_length, &mem_size);
@@ -159,8 +177,7 @@ int main() {
     handle_touch_input(fbmem, width, height, bpp, line_length);
     release_framebuffer(fbmem, fbfd, mem_size);
 
-    //지은 - 자이로가 값이 올라가면 shaker.wav 출력
-    gyro_shake_play(gyro[0], gyro[1], gyro[2]);
+    
 
 
 
