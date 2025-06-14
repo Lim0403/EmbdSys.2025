@@ -1,0 +1,197 @@
+#define _GNU_SOURCE       // ← 가장 첫 줄
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <time.h>
+#include <linux/input.h>
+#include <sys/msg.h>
+#include "button.h"
+
+#define MAX_LOOP 3
+#define MAX_PATH 100
+
+// 버튼 매핑 (evtest 등으로 실측 가능)
+#define BTN_RECORD     KEY_SEARCH     // 버튼1
+#define BTN_LOOP       KEY_BACK       // 버튼2
+#define BTN_SELECT1    KEY_MENU       // 버튼3
+#define BTN_SELECT2    KEY_HOME       // 버튼4
+#define BTN_SELECT3    KEY_PLAY       // 버튼5 (중복 피함)
+
+typedef struct {
+    int active;
+    float startTime;
+    float endTime;
+    char musicFile[MAX_PATH];
+} Loop;
+
+Loop loops[MAX_LOOP];
+int loopCount = 0;
+
+char *musicList[] = {
+    "song/Burkinelectric.wav",
+    "song/Far_Apart.wav",
+    "song/Unavailable.wav"
+};
+
+int currentMusicIndex = 0;
+int recordMode = 0;
+float recordStart = 0;
+pthread_mutex_t loopMutex = PTHREAD_MUTEX_INITIALIZER;
+
+float getTime() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
+void* loopPlayer(void* arg) {
+    while (1) {
+        pthread_mutex_lock(&loopMutex);
+        float now = getTime();
+        for (int i = 0; i < MAX_LOOP; i++) {
+            if (loops[i].active && now >= loops[i].startTime) {
+                char cmd[MAX_PATH + 64];
+                snprintf(cmd, sizeof(cmd), "play -q %s trim %.2f %.2f &",
+                    loops[i].musicFile,
+                    loops[i].startTime,
+                    loops[i].endTime - loops[i].startTime);
+                system(cmd);
+            }
+        }
+        pthread_mutex_unlock(&loopMutex);
+        usleep(500000); // 0.5초 간격 반복
+    }
+    return NULL;
+}
+
+void startRecording() {
+    recordStart = getTime();
+    recordMode = 1;
+    printf("🎙️ 녹음 시작\n");
+}
+
+void stopRecording() {
+    float endTime = getTime();
+    recordMode = 0;
+
+    char filename[64];
+    snprintf(filename, sizeof(filename), "record_%.0f.wav", endTime);
+    char cmd[128];
+    snprintf(cmd, sizeof(cmd), "arecord -d %.0f -f cd -t wav %s &",
+             endTime - recordStart, filename);
+    system(cmd);
+    printf("💾 녹음 저장: %s (%.2f초)\n", filename, endTime - recordStart);
+}
+
+void addLoop() {
+    if (loopCount >= MAX_LOOP) {
+        printf("❗ 최대 루프 수 도달\n");
+        return;
+    }
+    loops[loopCount].active = 0;
+    loops[loopCount].startTime = getTime();
+    snprintf(loops[loopCount].musicFile, MAX_PATH, "%s", musicList[currentMusicIndex]);
+    printf("🔁 루프%d 시작 (%s)\n", loopCount + 1, loops[loopCount].musicFile);
+}
+
+void finishLoop() {
+    float end = getTime();
+    pthread_mutex_lock(&loopMutex);
+    if (loopCount < MAX_LOOP) {
+        loops[loopCount].endTime = end;
+        loops[loopCount].active = 1;
+        printf("💾 루프%d 저장: %.2f ~ %.2f (%.2f초)\n",
+            loopCount + 1,
+            loops[loopCount].startTime,
+            end,
+            end - loops[loopCount].startTime);
+        loopCount++;
+    }
+    pthread_mutex_unlock(&loopMutex);
+}
+
+void deleteLastLoop() {
+    pthread_mutex_lock(&loopMutex);
+    if (loopCount > 0) {
+        loopCount--;
+        loops[loopCount].active = 0;
+        printf("🗑️ 마지막 루프 삭제\n");
+    }
+    pthread_mutex_unlock(&loopMutex);
+}
+
+void deleteAllLoops() {
+    pthread_mutex_lock(&loopMutex);
+    for (int i = 0; i < MAX_LOOP; i++) {
+        loops[i].active = 0;
+    }
+    loopCount = 0;
+    pthread_mutex_unlock(&loopMutex);
+    printf("🗑️ 전체 루프 삭제\n");
+}
+
+int main() {
+    if (!buttonInit()) {
+        printf("버튼 초기화 실패\n");
+        return -1;
+    }
+
+    pthread_t loopTh;
+    pthread_create(&loopTh, NULL, loopPlayer, NULL);
+
+    BUTTON_MSG_T msg;
+    int pressCount[KEY_MAX] = {0};
+    float lastPressTime[KEY_MAX] = {0};
+
+    while (1) {
+        msgrcv(msgget(MESSAGE_ID, 0666), &msg, sizeof(BUTTON_MSG_T) - sizeof(long), 0, 0);
+
+        if (msg.pressed == 1) {
+            int key = msg.keyInput;
+            float now = getTime();
+
+            if (now - lastPressTime[key] < 0.6f) pressCount[key]++;
+            else pressCount[key] = 1;
+            lastPressTime[key] = now;
+
+            switch (key) {
+                case BTN_RECORD:
+                    if (pressCount[key] == 1)
+                        startRecording();
+                    else if (pressCount[key] == 2)
+                        stopRecording();
+                    break;
+
+                case BTN_LOOP:
+                    if (pressCount[key] == 2)
+                        deleteLastLoop();
+                    else if (pressCount[key] == 3)
+                        deleteAllLoops();
+                    else if (loopCount < MAX_LOOP && loops[loopCount].active == 0)
+                        addLoop();
+                    else
+                        finishLoop();
+                    break;
+
+                case BTN_SELECT1:
+                    currentMusicIndex = 0;
+                    printf("🎵 음악 선택: %s\n", musicList[currentMusicIndex]);
+                    break;
+                case BTN_SELECT2:
+                    currentMusicIndex = 1;
+                    printf("🎵 음악 선택: %s\n", musicList[currentMusicIndex]);
+                    break;
+                case BTN_SELECT3:
+                    currentMusicIndex = 2;
+                    printf("🎵 음악 선택: %s\n", musicList[currentMusicIndex]);
+                    break;
+            }
+        }
+    }
+
+    buttonExit();
+    return 0;
+}

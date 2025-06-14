@@ -2,11 +2,18 @@ CC = arm-linux-gnueabi-gcc
 CFLAGS = -Wall -O2
 TARGET = main
 
-SRCS = main.c bitmap.c framebuffer.c sound.c
+# SYSROOT 설정 (크로스 툴체인의 libc)
+SYSROOT = /home/jieun/develop/gcc-linaro-5.5.0-2017.10-x86_64_arm-linux-gnueabi/arm-linux-gnueabi/libc
+
+
+SRCS = main.c bitmap.c framebuffer.c sound.c accelMagGyro.c
 OBJS = $(SRCS:.c=.o)
 
-INCLUDES = -I.
-LIBS =
+
+INCLUDES = -I. -I$(SYSROOT)/usr/include -I$(SYSROOT)/usr/include/alsa
+LIBPATH = -L$(SYSROOT)/usr/lib/arm-linux-gnueabihf
+
+LIBS = $(LIBPATH) -lpthread -lasound
 
 .PHONY: all clean
 
