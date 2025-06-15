@@ -143,7 +143,7 @@ void* gyro_thread(void* arg) {
 
         if (gyro[0] > 400 || gyro[1] > 400 || gyro[2] > 400) {
             printf("자이로 입력 감지됨!\n"); //테스터 함수 - 추후 삭제하기
-            usleep(100000); // 흔든 후 약간 시간이 지나야 출력. offset
+            usleep(300000); // 흔든 후 약간 시간이 지나야 출력. offset
             play_shaker();  // 셰이커 소리 출력
         }
 
