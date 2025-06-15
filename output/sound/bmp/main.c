@@ -17,11 +17,13 @@
 #include "sound.h"
 #include "accelMagGyro.h" // 자이로스코프 라이브러리
 #include "record.h"
-
+#include "fnd.h"
+#include "led.h"
 
 #define INPUT_DEVICE "/dev/input/event4"
+#define BUTTON_DEVICE "/dev/input/event5"
 #define MAX_TOUCHES 10
-
+#define TARGET_BUTTON_CODE 217  // FND용 3번 버튼
 
 //이벤트 시간, 파일이름 구조체
 
@@ -113,7 +115,7 @@ void handle_touch_input(unsigned char *fbmem, int fb_width, int fb_height, int b
                 tracking[current_slot] = 0;
                 active_touches--;
                 if (active_touches <= 0) {
-                    draw_bmp_fullscreen("original.bmp", fbmem, fb_width, fb_height, bpp, line_length);
+                    draw_bmp_fullscreen("base.bmp", fbmem, fb_width, fb_height, bpp, line_length);
                     memset(last_drawn, 0, sizeof(last_drawn));
                     active_touches = 0;
                 }
@@ -170,6 +172,54 @@ void* gyro_thread(void* arg) {
 }
 
 
+
+
+void* button_thread(void* arg) {
+    int fd = open(BUTTON_DEVICE, O_RDONLY);
+    if (fd < 0) {
+        perror("Failed to open button device");
+        return NULL;
+    }
+
+    struct input_event ev;
+    while (1) {
+        if (read(fd, &ev, sizeof(ev)) > 0) {
+            if (ev.type == EV_KEY && ev.value == 1) {
+                printf("버튼 입력: code = %d\n", ev.code);
+                switch (ev.code) {
+                    case 102:
+                        printf("버튼 1번: 기본소리모드\n");
+                        set_sound_mode(0);
+                        break;
+                    case 158:
+                        printf("버튼 2번: 변경소리모드\n");
+                        set_sound_mode(1);
+                        break;
+                    case TARGET_BUTTON_CODE:
+                        printf("버튼 3번: FND 카운트 및 LED\n");
+                        for (int i = 0; i <= 10; i++) {
+                            fndDisp(i, 0);
+                            led_by_fnd(i);
+                            sleep(1);
+                        }
+                        break;
+                    default:
+                        printf("알 수 없는 버튼 코드: %d\n", ev.code);
+                        break;
+                }
+            }
+        }
+        usleep(10000);
+    }
+
+    close(fd);
+    return NULL;
+}
+
+
+
+
+
 //===========================지은 : events 구조체에 시간, 파일 이름 저장하는 함수=========================
 
 
@@ -183,24 +233,23 @@ void register_touch_event(float current_time_sec, const char* filename) {
 
 //====================================================================================================================================
 
+
+
+
 int main() {
     unsigned char *fbmem;
     int width, height, bpp, line_length, mem_size;
-    pthread_t gyro_tid;
+    pthread_t gyro_tid, button_tid;
 
     prepare_display_environment();
-
-    printf("start!");
     int fbfd = init_framebuffer("/dev/fb0", &fbmem, &width, &height, &bpp, &line_length, &mem_size);
     if (fbfd < 0) return -1;
 
-
     enable_graphics_mode();
-    draw_bmp_fullscreen("original.bmp", fbmem, width, height, bpp, line_length);
+    draw_bmp_fullscreen("base.bmp", fbmem, width, height, bpp, line_length);
 
     //지은 - 자이로가 값이 올라가면 shaker.wav 출력============================
-    //gyro_shake_play(gyro[0], gyro[1], gyro[2]);
-
+   
     if (pthread_create(&gyro_tid, NULL, gyro_thread, NULL) != 0)
     {
         perror("Failed to create gyro thread");
@@ -208,11 +257,14 @@ int main() {
     }
     //===================================================================
 
+    ledLibInit();
+
+    pthread_create(&button_tid, NULL, button_thread, NULL);
 
     // 터치 이벤트 -> 메인 쓰레드임. 다른 쓰레드보다 뒤에 놓을 것
     handle_touch_input(fbmem, width, height, bpp, line_length);
     release_framebuffer(fbmem, fbfd, mem_size);
-
+    ledLibExit();
 
 
     return 0;

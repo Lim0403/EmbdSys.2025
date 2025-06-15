@@ -3,22 +3,38 @@
 #include <alsa/asoundlib.h>
 #include "sound.h"
 
+int current_sound_mode = 0;
+
+void set_sound_mode(int mode) {
+    if (mode == 0 || mode == 1) {
+        current_sound_mode = mode;
+        printf(">>> [set_sound_mode] 사운드 모드가 %s로 설정되었습니다. (mode = %d)\n",
+               mode == 0 ? "기본모드" : "변경모드", current_sound_mode);
+    }
+}
+
 void play_sound(int row, int col) {
-    const char *sound_table[3][3] = {
+    printf(">>> [play_sound] current_sound_mode = %d\n", current_sound_mode);
+
+    const char *sound_table_default[3][3] = {
         {"sound1.wav", "sound2.wav", "sound3.wav"},
         {"sound4.wav", "sound5.wav", "sound6.wav"},
         {"sound7.wav", "sound8.wav", "sound9.wav"}
     };
 
+    const char *sound_table_alt[3][3] = {
+        {"sound10.wav", "sound11.wav", "sound12.wav"},
+        {"sound13.wav", "sound14.wav", "sound15.wav"},
+        {"sound16.wav", "sound17.wav", "sound18.wav"}
+    };
+
     if (row < 0 || row >= 3 || col < 0 || col >= 3) return;
 
-    //char command[64];
-    //snprintf(command, sizeof(command), "aplay %s &", sound_table[row][col]);
-    //system(command);
+    const char *filename = (current_sound_mode == 0)
+        ? sound_table_default[row][col]
+        : sound_table_alt[row][col];
 
-    
-    //asla 활용한 버전
-    play_wav(sound_table[row][col]);
+    play_wav(filename);
 
     /*// asla -> 만약에 .wav가 inst 폴더 안에 있을 때
     char fullpath[128];
@@ -27,14 +43,11 @@ void play_sound(int row, int col) {
     */
 }
 
-void play_shaker() {
-    const char* shaker = "shaker.wav";
-    //char command[64];
-    //snprintf(command, sizeof(command), "aplay %s &", shaker);
-    //system(command);
 
-    //asla 활용한 버전
-    play_wav(shaker);
+void play_shaker() {
+    const char* shaker = "tamb_out (1).wav";
+    printf(">>> [play_shaker] tabm_out(1)wav 재생\n");
+    play_wav("tamb_out (1).wav");
 
     /*// asla -> 만약에 .wav가 inst 폴더 안에 있을 때
     char fullpath[128];
@@ -48,11 +61,6 @@ void play_recorded_sound(int num){
     //0은 첫번째 루프, 1은 두번째루프, 2가 최종 합성 루프
     if(2<num||num<0) return;
     const char *recorded_sound_table[3] = {"recorded_sound0.wav", "recorded_sound1.wav", "recorded_sound2.wav"};
-    //char command[64];
-    //snprintf(command, sizeof(command), "aplay %s &", recorded_sound[num]);
-    //system(command);
-
-    //asla 활용한 버전
     play_wav(recorded_sound_table[num]);
 
     /*// asla -> 만약에 .wav가 inst 폴더 안에 있을 때
@@ -65,6 +73,8 @@ void play_recorded_sound(int num){
 
 
 void play_wav(const char* filename) {
+    printf(">>> [play_wav] 파일: %s\n", filename);
+
     FILE* fp = fopen(filename, "rb");
     if (!fp) {
         perror("파일 열기 실패");
@@ -75,7 +85,12 @@ void play_wav(const char* filename) {
     fseek(fp, 44, SEEK_SET);
 
     snd_pcm_t* pcm;
-    snd_pcm_open(&pcm, "default", SND_PCM_STREAM_PLAYBACK, 0);
+    if (snd_pcm_open(&pcm, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0) {
+            perror("ALSA 디바이스 열기 실패");
+            fclose(fp);
+            return;
+        }
+
     snd_pcm_set_params(pcm,
         SND_PCM_FORMAT_S16_LE,
         SND_PCM_ACCESS_RW_INTERLEAVED,
