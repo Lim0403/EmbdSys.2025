@@ -14,6 +14,8 @@
 #include "accelMagGyro.h" // 자이로스코프 라이브러리
 #include <alsa/asoundlib.h> //alsa라는 음성 출력 및 녹음 라이브러리
 #include <sys/time.h>  //타이머 기능
+#include <pthread.h>
+
 
 #define INPUT_DEVICE "/dev/input/event4"
 #define MAX_TOUCHES 10
@@ -30,7 +32,7 @@ void enable_graphics_mode() {
     }
 }
 
-//Framebuffer에 지정한 위치와 크기로 사각형을 그림
+//Framebuffer에 지정된 사각형 그리기 함수
 void draw_rectangle(unsigned char *fbmem, int fb_width, int fb_height, int bpp, int line_length,
                     int x, int y, int w, int h, unsigned int color) {
     for (int j = 0; j < h; j++) {
@@ -51,6 +53,7 @@ typedef struct {
     int x, y, w, h;
 } Zone;
 
+//터치스크린 입력 실시간 읽기. 사각형 그림. 소리재생
 void handle_touch_input(unsigned char *fbmem, int fb_width, int fb_height, int bpp, int line_length) {
     int fd = open(INPUT_DEVICE, O_RDONLY);
     if (fd < 0) {
@@ -133,13 +136,22 @@ void handle_touch_input(unsigned char *fbmem, int fb_width, int fb_height, int b
 
 int gyro[3] = {0};
 
-void gyro_shake_play(int val1, int val2, int val3)
-    {
+//쓰레드 함수 사용
+void* gyro_thread(void* arg) {
+    while (1) {
         if (readGyro(gyro) != 0) {printf("Failed to read gyroscope data.\n");}
 
-        if(val1>200||val2>200||val3>200){printf("자이로 입력 함수 넣어야 하는데 함수가 없어서 일단 프린트해놓은 것");
-        play_shaker();}
+        if (gyro[0] > 400 || gyro[1] > 400 || gyro[2] > 400) {
+            printf("자이로 입력 감지됨!\n"); //테스터 함수 - 추후 삭제하기
+            usleep(100000); // 흔든 후 약간 시간이 지나야 출력. offset
+            play_shaker();  // 셰이커 소리 출력
+        }
+
+        usleep(200000); // 0.2s마다 확인 
     }
+    return NULL;
+}
+
 
 
 //====================================================================================================================================
@@ -147,6 +159,7 @@ void gyro_shake_play(int val1, int val2, int val3)
 int main() {
     unsigned char *fbmem;
     int width, height, bpp, line_length, mem_size;
+    pthread_t gyro_tid;
 
     printf("start!");
     int fbfd = init_framebuffer("/dev/fb0", &fbmem, &width, &height, &bpp, &line_length, &mem_size);
@@ -156,15 +169,20 @@ int main() {
     enable_graphics_mode();
     draw_bmp_fullscreen("original.bmp", fbmem, width, height, bpp, line_length);
 
+    //지은 - 자이로가 값이 올라가면 shaker.wav 출력============================
+    //gyro_shake_play(gyro[0], gyro[1], gyro[2]);
+
+    if (pthread_create(&gyro_tid, NULL, gyro_thread, NULL) != 0)
+    {
+        perror("Failed to create gyro thread");
+        return -1;
+    }
+    //===================================================================
 
 
+    // 터치 이벤트 -> 메인 쓰레드임. 다른 쓰레드보다 뒤에 놓을 것
     handle_touch_input(fbmem, width, height, bpp, line_length);
     release_framebuffer(fbmem, fbfd, mem_size);
-
-    //지은 - 자이로가 값이 올라가면 shaker.wav 출력
-    gyro_shake_play(gyro[0], gyro[1], gyro[2]);
-
-
 
 
 
