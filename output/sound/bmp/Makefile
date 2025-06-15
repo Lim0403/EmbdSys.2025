@@ -11,7 +11,7 @@ OBJS = $(SRCS:.c=.o)
 
 
 INCLUDES = -I. -I$(SYSROOT)/usr/include -I$(SYSROOT)/usr/include/alsa
-LIBPATH = -L$(SYSROOT)/usr/lib/arm-linux-gnueabihf
+LIBPATH = -L$(SYSROOT)/usr/lib -L$(SYSROOT)/lib
 
 LIBS = $(LIBPATH) -lpthread -lasound
 

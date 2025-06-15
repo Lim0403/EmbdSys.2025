@@ -18,6 +18,7 @@
 #define INPUT_DEVICE "/dev/input/event4"
 #define MAX_TOUCHES 10
 
+//콘솔을 그래픽 모드로 전환
 void enable_graphics_mode() {
     int conFD = open("/dev/tty0", O_RDWR);
     if (conFD >= 0) {
@@ -29,6 +30,7 @@ void enable_graphics_mode() {
     }
 }
 
+//Framebuffer에 지정한 위치와 크기로 사각형을 그림
 void draw_rectangle(unsigned char *fbmem, int fb_width, int fb_height, int bpp, int line_length,
                     int x, int y, int w, int h, unsigned int color) {
     for (int j = 0; j < h; j++) {
