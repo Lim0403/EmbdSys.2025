@@ -6,7 +6,7 @@ TARGET = main
 SYSROOT = /home/jieun/develop/gcc-linaro-5.5.0-2017.10-x86_64_arm-linux-gnueabi/arm-linux-gnueabi/libc
 
 
-SRCS = main.c bitmap.c framebuffer.c sound.c accelMagGyro.c fnd.c button.c
+SRCS = main.c bitmap.c framebuffer.c sound.c accelMagGyro.c fnd.c button.c record.c
 OBJS = $(SRCS:.c=.o)
 
 

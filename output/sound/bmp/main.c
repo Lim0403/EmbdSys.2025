@@ -8,17 +8,38 @@
 #include <linux/fb.h>
 #include <linux/kd.h>
 #include <linux/input.h>
-#include "bitmap.h"
-#include "framebuffer.h"
-#include "sound.h"
-#include "accelMagGyro.h" // 자이로스코프 라이브러리
 #include <alsa/asoundlib.h> //alsa라는 음성 출력 및 녹음 라이브러리
 #include <sys/time.h>  //타이머 기능
 #include <pthread.h>
 
+#include "bitmap.h"
+#include "framebuffer.h"
+#include "sound.h"
+#include "accelMagGyro.h" // 자이로스코프 라이브러리
+#include "record.h"
+
 
 #define INPUT_DEVICE "/dev/input/event4"
 #define MAX_TOUCHES 10
+
+
+//이벤트 시간, 파일이름 구조체
+
+SoundEvent events[100];        // 최대 100개의 터치 이벤트 저장
+
+//붉은 네모 구조체
+typedef struct {
+    int x, y, w, h;
+} Zone;
+
+
+//===========================함수구현부=================================================
+
+
+void prepare_display_environment() {
+    system("pkill -f \"/usr/bin/X\"");
+    system("TERM=linux setterm -blank 0 -powerdown 0 -powersave off > /dev/tty0 < /dev/tty0");
+}
 
 //콘솔을 그래픽 모드로 전환
 void enable_graphics_mode() {
@@ -48,10 +69,6 @@ void draw_rectangle(unsigned char *fbmem, int fb_width, int fb_height, int bpp, 
         }
     }
 }
-
-typedef struct {
-    int x, y, w, h;
-} Zone;
 
 //터치스크린 입력 실시간 읽기. 사각형 그림. 소리재생
 void handle_touch_input(unsigned char *fbmem, int fb_width, int fb_height, int bpp, int line_length) {
@@ -153,6 +170,16 @@ void* gyro_thread(void* arg) {
 }
 
 
+//===========================지은 : events 구조체에 시간, 파일 이름 저장하는 함수=========================
+
+
+// 사용자가 터치한 시점과 사운드 이름을 등록
+int event_count = 0;
+void register_touch_event(float current_time_sec, const char* filename) {
+    events[event_count].timing_sec = current_time_sec;
+    events[event_count].filename = filename;
+    event_count++;
+}
 
 //====================================================================================================================================
 
@@ -160,6 +187,8 @@ int main() {
     unsigned char *fbmem;
     int width, height, bpp, line_length, mem_size;
     pthread_t gyro_tid;
+
+    prepare_display_environment();
 
     printf("start!");
     int fbfd = init_framebuffer("/dev/fb0", &fbmem, &width, &height, &bpp, &line_length, &mem_size);
