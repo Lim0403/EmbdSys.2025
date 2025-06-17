@@ -15,7 +15,6 @@
 #include "bitmap.h"
 #include "framebuffer.h"
 #include "sound.h"
-#include "accelMagGyro.h" // 자이로스코프 라이브러리
 #include "record.h"
 #include "fnd.h"
 #include "led.h"
@@ -39,7 +38,7 @@ volatile char last_played_filename[128];
 volatile int file_num;
 
 // thread structs
-pthread_t gyro_tid, button_tid, loop_tid, fnd_displ;
+pthread_t  button_tid, loop_tid;
 
 //===========================함수구현부=================================================
 
@@ -159,34 +158,7 @@ void handle_touch_input(unsigned char *fbmem, int fb_width, int fb_height, int b
 
 //===========================지은 : 자이로스코프가 일정 값 이상이 될 시 loop의 녹음 함수 시작(loop코드 아직 안 와서 비워놓음)=========================
 
-int gyro[3] = {0};
 
-//쓰레드 함수 사용
-void* gyro_thread(void* arg) {
-    while (1) {
-        if (readGyro(gyro) != 0) {printf("Failed to read gyroscope data.\n");}
-
-        if (gyro[0] > 400 || gyro[1] > 400 || gyro[2] > 400) {
-            printf("자이로 입력 감지됨!\n"); //테스터 함수 - 추후 삭제하기
-            usleep(300000); // 흔든 후 약간 시간이 지나야 출력. offset
-            play_shaker();  // 셰이커 소리 출력
-        }
-
-        usleep(200000); // 0.2s마다 확인 
-    }
-    return NULL;
-}
-
-void* fnd_display(void* arg) {
-   
-        for (int i = 0; i <= 10; i++) {
-                                fndDisp(i, 0);
-                                led_by_fnd(i);
-                                sleep(1);
-                            }
-    
-    return NULL;
-}
 
 
 
@@ -218,18 +190,20 @@ void* button_thread(void* arg) {
                         if(file_num<3){
                             pthread_create(&loop_tid, NULL, loop_thread, NULL);
                             file_num++;
-                            
-                            pthread_create(&fnd_displ, NULL, fnd_display, NULL);
-                            
+
+                            for (int i = 0; i <= 10; i++) {
+                                fndDisp(i, 0);
+                                led_by_fnd(i);
+                                sleep(1);
+                            }
                         }
                         else{printf("최종파일 제작 완료");}
                         break;
 
                     case 139: //4번 번호가 뭐지
                         printf("버튼 4번: 제작된 루프 출력\n");
-                        if(file_num<3){ 
-                            printf("%d번째 루프", file_num);
-                            play_recorded_sound(file_num);
+                        if(file_num<3){ play_recorded_sound(file_num);
+                            
                             
                         }
                     
@@ -264,7 +238,7 @@ void* button_thread(void* arg) {
 int main() {
     unsigned char *fbmem;
     int width, height, bpp, line_length, mem_size;
-    
+    int file_num = 0;
     
 
     prepare_display_environment();
@@ -275,12 +249,7 @@ int main() {
     draw_bmp_fullscreen("base.bmp", fbmem, width, height, bpp, line_length);
 
     //지은 - 자이로가 값이 올라가면 shaker.wav 출력============================
-   
-    if (pthread_create(&gyro_tid, NULL, gyro_thread, NULL) != 0)
-    {
-        perror("Failed to create gyro thread");
-        return -1;
-    }
+  
     //===================================================================
 
     ledLibInit();

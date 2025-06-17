@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <alsa/asoundlib.h>
 #include <string.h>
-#include <pthread.h>
+
 #include "sound.h"
 
 // main.c에서 선언한 포인터 참조
@@ -10,7 +10,7 @@ extern volatile char last_played_filename[128];
 char *ptr = (char *)last_played_filename;
 // record.c 에 보낼 play_wav flag
 volatile int play_wav_flag;
-static pthread_mutex_t alsa_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 int current_sound_mode = 0;
 
@@ -53,17 +53,6 @@ void play_sound(int row, int col) {
 }
 
 
-void play_shaker() {
-    const char* shaker = "tamb_out (1).wav";
-    play_wav(shaker);
-
-    /*// asla -> 만약에 .wav가 inst 폴더 안에 있을 때
-    char fullpath[128];
-    snprintf(fullpath, sizeof(fullpath), "inst/%s", shaker);
-    play_wav(fullpath);
-    */
-    
-}
 
 void play_recorded_sound(int num){
     //0은 첫번째 루프, 1은 두번째루프, 2가 최종 합성 루프
@@ -81,10 +70,6 @@ void play_recorded_sound(int num){
 
 
 void play_wav(const char* filename) {
-
-     pthread_mutex_lock(&alsa_mutex);  //  ALSA 진입 락
-
-
 
     //play_wav 실행 flag
     play_wav_flag = 1;
@@ -134,6 +119,4 @@ void play_wav(const char* filename) {
     snd_pcm_drain(pcm);
     snd_pcm_close(pcm);
     fclose(fp);
-
-    pthread_mutex_unlock(&alsa_mutex);  //  ALSA 해제 락
 }

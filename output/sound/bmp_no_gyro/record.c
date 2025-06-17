@@ -30,10 +30,6 @@ extern volatile int file_num;
 
 //10초 루프 관리 및 구조체 저장 함수========================================
 void run_10sec_loop() {
-
-
-    loop_buffer_size = 0;
-
     struct timeval start_time, current_time;
     float elapsed = 0;
 
@@ -46,7 +42,6 @@ void run_10sec_loop() {
                   (current_time.tv_usec - start_time.tv_usec) / 1000000.0;
 
         if(play_wav_flag){
-            printf("감지된 재생 이벤트: %s\n", last_played_filename);
             register_touch_event(elapsed, (const char*)last_played_filename);
             play_wav_flag = 0;
         }
@@ -54,14 +49,12 @@ void run_10sec_loop() {
         usleep(10000);  // 0.01초 슬립
     }
 
-
-   elapsed = 0;
-
-
     printf("10초 루프 종료\n");
 
     // 음악 파일 생성 => buffer
     build_loop_from_events(events, event_count);
+    
+
     //몇번째 파일인지에 따라 이름 다르게 저장
     save_loop_to_wav(recorded_sound_table[file_num]);
 
@@ -70,7 +63,6 @@ void run_10sec_loop() {
 }
 
 void* loop_thread(void* arg) {
-    printf("loop_thread enter");
     run_10sec_loop();  // 기존 함수 호출
     return NULL;
 }
@@ -80,8 +72,7 @@ void* loop_thread(void* arg) {
 // events 구조체에 사용자가 터치한 시점과 사운드 이름을 등록====================
 void register_touch_event(float current_time_sec, const char* filename) {
     events[event_count].timing_sec = current_time_sec;
-    events[event_count].filename = strdup(filename); 
-    printf("이벤트 등록: %s at %.2f초\n", filename, current_time_sec);
+    events[event_count].filename = filename;
     event_count++;
 }
 
@@ -158,7 +149,7 @@ void build_loop_from_events(SoundEvent* events, int count) {
             perror("파일 열기 실패");
             continue;
         }
-            printf("build_loop_from_events");
+
         fseek(fp, 44, SEEK_SET); // WAV 헤더 스킵
         int insert_pos = (int)(events[i].timing_sec * 44100 * 4); // 바이트 위치 계산 (스테레오 16bit 기준)
 
@@ -188,8 +179,6 @@ void build_loop_from_events(SoundEvent* events, int count) {
 
 
             cur_pos += len;
-            if (cur_pos > loop_buffer_size)
-            loop_buffer_size = cur_pos;
         }
 
         fclose(fp);
